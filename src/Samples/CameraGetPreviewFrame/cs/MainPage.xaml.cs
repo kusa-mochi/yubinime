@@ -70,6 +70,43 @@ namespace CameraGetPreviewFrame
 
         // Fujimaki Add タイマー
         private DispatcherTimer _timer;
+        // Fujimaki Add タイマーの時間間隔[ms]
+        private int _timerInterval = 500;
+
+        // Fujimaki Add 音声ファイル名
+        private string[] _soundFileNames = {
+            "003_ra-1.mp3",
+            "005_shiflat-1.mp3",
+            "007_shi-1.mp3",
+            "010_do0.mp3",
+            "020_dosharp0.mp3",
+            "030_re0.mp3",
+            "040_resharp0.mp3",
+            "050_mi0.mp3",
+            "060_fa0.mp3",
+            "070_fasharp0.mp3",
+            "080_so0.mp3",
+            "090_sosharp0.mp3",
+            "100_ra0.mp3",
+            "110_shiflat0.mp3",
+            "120_shi0.mp3",
+            "130_do1.mp3",
+            "140_dosharp1.mp3",
+            "150_re1.mp3",
+            "160_resharp1.mp3",
+            "170_mi1.mp3",
+            "180_fa1.mp3",
+            "190_fasharp1.mp3",
+            "200_so1.mp3",
+            "210_sosharp1.mp3",
+            "220_ra1.mp3",
+            "230_shiflat1.mp3",
+            "240_shi1.mp3",
+            "250_do2.mp3",
+            "260_dosharp2.mp3",
+            "270_re2.mp3",
+            "280_resharp2.mp3"
+        };
 
         #region Constructor, lifecycle and navigation
 
@@ -84,6 +121,11 @@ namespace CameraGetPreviewFrame
             // Useful to know when to initialize/clean up the camera
             Application.Current.Suspending += Application_Suspending;
             Application.Current.Resuming += Application_Resuming;
+
+            _timer = new DispatcherTimer(); // Fujimaki Add
+            _timer.Interval = TimeSpan.FromMilliseconds(_timerInterval);    // Fujimaki Add
+            _timer.Tick += _timer_Tick; // Fujimaki Add
+            _timer.Start(); // Fujimaki Add
         }
 
         private async void Application_Suspending(object sender, SuspendingEventArgs e)
@@ -96,7 +138,7 @@ namespace CameraGetPreviewFrame
                 await CleanupCameraAsync();
 
                 _displayInformation.OrientationChanged -= DisplayInformation_OrientationChanged;
-                
+
                 deferral.Complete();
             }
         }
@@ -276,7 +318,7 @@ namespace CameraGetPreviewFrame
                         // Only mirror the preview if the camera is on the front panel
                         _mirroringPreview = (cameraDevice.EnclosureLocation.Panel == Windows.Devices.Enumeration.Panel.Front);
                     }
-                    
+
                     await StartPreviewAsync();
 
                     var picturesLibrary = await StorageLibrary.GetLibraryAsync(KnownLibraryId.Pictures);
@@ -360,6 +402,12 @@ namespace CameraGetPreviewFrame
 
                 GetPreviewFrameButton.IsEnabled = _isPreviewing;
             });
+        }
+
+        // Fujimaki Add
+        private async void _timer_Tick(object sender, object e)
+        {
+            await GetPreviewFrameAsSoftwareBitmapAsync();
         }
 
         /// <summary>
@@ -585,6 +633,5 @@ namespace CameraGetPreviewFrame
         }
 
         #endregion Helper functions 
-
     }
 }
