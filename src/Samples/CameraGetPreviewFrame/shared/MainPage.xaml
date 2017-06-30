@@ -48,6 +48,7 @@
             <StackPanel Orientation="Horizontal">
                 <CheckBox Name="ShowFrameCheckBox" Content="Show frame" Margin="2"/>
                 <CheckBox Name="GreenEffectCheckBox" Content="Green effect" Margin="2"/>
+                <TextBlock x:Name="BrightnessValueText" Text=""/>
             </StackPanel>
             <CheckBox Name="SaveFrameCheckBox" Content="Save frame" Margin="2"/>
         </StackPanel>

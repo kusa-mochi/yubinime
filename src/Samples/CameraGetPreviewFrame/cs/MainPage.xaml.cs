@@ -71,7 +71,7 @@ namespace CameraGetPreviewFrame
         // Fujimaki Add タイマー
         private DispatcherTimer _timer;
         // Fujimaki Add タイマーの時間間隔[ms]
-        private int _timerInterval = 500;
+        private int _timerInterval = 100;
 
         // Fujimaki Add 音声ファイル名
         private string[] _soundFileNames = {
@@ -121,11 +121,6 @@ namespace CameraGetPreviewFrame
             // Useful to know when to initialize/clean up the camera
             Application.Current.Suspending += Application_Suspending;
             Application.Current.Resuming += Application_Resuming;
-
-            _timer = new DispatcherTimer(); // Fujimaki Add
-            _timer.Interval = TimeSpan.FromMilliseconds(_timerInterval);    // Fujimaki Add
-            _timer.Tick += _timer_Tick; // Fujimaki Add
-            _timer.Start(); // Fujimaki Add
         }
 
         private async void Application_Suspending(object sender, SuspendingEventArgs e)
@@ -163,12 +158,18 @@ namespace CameraGetPreviewFrame
             _displayInformation.OrientationChanged += DisplayInformation_OrientationChanged;
 
             await InitializeCameraAsync();
+
+            _timer = new DispatcherTimer(); // Fujimaki Add
+            _timer.Interval = TimeSpan.FromMilliseconds(_timerInterval);    // Fujimaki Add
+            _timer.Tick += _timer_Tick; // Fujimaki Add
+            _timer.Start(); // Fujimaki Add
         }
 
         protected override async void OnNavigatingFrom(NavigatingCancelEventArgs e)
         {
             // Handling of this event is included for completenes, as it will only fire when navigating between pages and this sample only includes one page
 
+            _timer.Stop();
             await CleanupCameraAsync();
 
             _displayInformation.OrientationChanged -= DisplayInformation_OrientationChanged;
@@ -407,7 +408,27 @@ namespace CameraGetPreviewFrame
         // Fujimaki Add
         private async void _timer_Tick(object sender, object e)
         {
-            await GetPreviewFrameAsSoftwareBitmapAsync();
+            //await GetPreviewFrameAsSoftwareBitmapAsync();
+            await PlaySoundAsync();
+        }
+
+        // Fujimaki Add
+        private async Task PlaySoundAsync()
+        {
+            // Get information about the preview
+            var previewProperties = _mediaCapture.VideoDeviceController.GetMediaStreamProperties(MediaStreamType.VideoPreview) as VideoEncodingProperties;
+
+            // Create the video frame to request a SoftwareBitmap preview frame
+            var videoFrame = new VideoFrame(BitmapPixelFormat.Bgra8, (int)previewProperties.Width, (int)previewProperties.Height);
+
+            // Capture the preview frame
+            using (var currentFrame = await _mediaCapture.GetPreviewFrameAsync(videoFrame))
+            {
+                // Collect the resulting frame
+                SoftwareBitmap previewFrame = currentFrame.SoftwareBitmap;
+                int brightness = GetAverageBrightness(previewFrame);
+                this.BrightnessValueText.Text = brightness.ToString();
+            }
         }
 
         /// <summary>
@@ -630,6 +651,51 @@ namespace CameraGetPreviewFrame
                     }
                 }
             }
+        }
+
+        // Fujimaki Add
+        private unsafe int GetAverageBrightness(SoftwareBitmap bitmap)
+        {
+            int output = 0;
+
+            // In BGRA8 format, each pixel is defined by 4 bytes
+            const int BYTES_PER_PIXEL = 4;
+
+            using (var buffer = bitmap.LockBuffer(BitmapBufferAccessMode.ReadWrite))
+            using (var reference = buffer.CreateReference())
+            {
+                if (reference is IMemoryBufferByteAccess)
+                {
+                    // Get a pointer to the pixel buffer
+                    byte* data;
+                    uint capacity;
+                    ((IMemoryBufferByteAccess)reference).GetBuffer(out data, out capacity);
+
+                    // Get information about the BitmapBuffer
+                    var desc = buffer.GetPlaneDescription(0);
+
+                    // Iterate over all pixels
+                    for (uint row = 0; row < desc.Height; row++)
+                    {
+                        for (uint col = 0; col < desc.Width; col++)
+                        {
+                            // Index of the current pixel in the buffer (defined by the next 4 bytes, BGRA8)
+                            var currPixel = desc.StartIndex + desc.Stride * row + BYTES_PER_PIXEL * col;
+
+                            // Read the current pixel information into b,g,r channels (leave out alpha channel)
+                            var b = data[currPixel + 0]; // Blue
+                            var g = data[currPixel + 1]; // Green
+                            var r = data[currPixel + 2]; // Red
+
+                            output += b + g + r;
+                        }
+                    }
+
+                    output = output / (3 * desc.Height * desc.Width);
+                }
+            }
+
+            return output;
         }
 
         #endregion Helper functions 
