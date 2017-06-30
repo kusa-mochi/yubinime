@@ -148,6 +148,37 @@
     <Content Include="..\..\..\SharedContent\media\tile-sdk.png">
       <Link>Assets\tile-sdk.png</Link>
     </Content>
+    <Content Include="Assets\003_ra-1.mp3" />
+    <Content Include="Assets\005_shiflat-1.mp3" />
+    <Content Include="Assets\007_shi-1.mp3" />
+    <Content Include="Assets\010_do0.mp3" />
+    <Content Include="Assets\020_dosharp0.mp3" />
+    <Content Include="Assets\030_re0.mp3" />
+    <Content Include="Assets\040_resharp0.mp3" />
+    <Content Include="Assets\050_mi0.mp3" />
+    <Content Include="Assets\060_fa0.mp3" />
+    <Content Include="Assets\070_fasharp0.mp3" />
+    <Content Include="Assets\080_so0.mp3" />
+    <Content Include="Assets\090_sosharp0.mp3" />
+    <Content Include="Assets\100_ra0.mp3" />
+    <Content Include="Assets\110_shiflat0.mp3" />
+    <Content Include="Assets\120_shi0.mp3" />
+    <Content Include="Assets\130_do1.mp3" />
+    <Content Include="Assets\140_dosharp1.mp3" />
+    <Content Include="Assets\150_re1.mp3" />
+    <Content Include="Assets\160_resharp1.mp3" />
+    <Content Include="Assets\170_mi1.mp3" />
+    <Content Include="Assets\180_fa1.mp3" />
+    <Content Include="Assets\190_fasharp1.mp3" />
+    <Content Include="Assets\200_so1.mp3" />
+    <Content Include="Assets\210_sosharp1.mp3" />
+    <Content Include="Assets\220_ra1.mp3" />
+    <Content Include="Assets\230_shiflat1.mp3" />
+    <Content Include="Assets\240_shi1.mp3" />
+    <Content Include="Assets\250_do2.mp3" />
+    <Content Include="Assets\260_dosharp2.mp3" />
+    <Content Include="Assets\270_re2.mp3" />
+    <Content Include="Assets\280_resharp2.mp3" />
   </ItemGroup>
   <PropertyGroup Condition=" '$(VisualStudioVersion)' == '' or '$(VisualStudioVersion)' &lt; '14.0' ">
     <VisualStudioVersion>14.0</VisualStudioVersion>
