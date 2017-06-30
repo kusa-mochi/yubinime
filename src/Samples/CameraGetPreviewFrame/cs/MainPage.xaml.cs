@@ -219,21 +219,20 @@ namespace CameraGetPreviewFrame
             if (_mediaCapture == null)
             {
                 // Attempt to get the back camera if one is available, but use any camera device if not
-                // Fujimaki Comment out
-                //var cameraDevice = await FindCameraDeviceByPanelAsync(Windows.Devices.Enumeration.Panel.Back);
+                var cameraDevice = await FindCameraDeviceByPanelAsync(Windows.Devices.Enumeration.Panel.Back);
 
-                // Fujimaki Add カメラデバイスの選択処理
-                DeviceInformationCollection cameraDevices = await DeviceInformation.FindAllAsync(DeviceClass.VideoCapture);
-                DeviceInformation cameraDevice = null;
-                for (int i = 0; i < cameraDevices.Count(); i++)
-                {
-                    if (cameraDevices.ElementAt(i).Name != "USB 2.0 Camera")
-                    {
-                        continue;
-                    }
-                    cameraDevice = cameraDevices.ElementAt(i);
-                }
-                // Fujimaki Add End カメラデバイスの選択処理
+                //// Fujimaki Add カメラデバイスの選択処理
+                //DeviceInformationCollection cameraDevices = await DeviceInformation.FindAllAsync(DeviceClass.VideoCapture);
+                //DeviceInformation cameraDevice = null;
+                //for (int i = 0; i < cameraDevices.Count(); i++)
+                //{
+                //    if (cameraDevices.ElementAt(i).Name != "USB 2.0 Camera")
+                //    {
+                //        continue;
+                //    }
+                //    cameraDevice = cameraDevices.ElementAt(i);
+                //}
+                //// Fujimaki Add End カメラデバイスの選択処理
 
                 if (cameraDevice == null)
                 {

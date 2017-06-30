@@ -1,0 +1,40 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 14
+VisualStudioVersion = 14.0.22823.1
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CameraAdvancedCapture", "CameraAdvancedCapture.csproj", "{04B2B167-CA64-5005-B053-E706C876A7DB}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|ARM = Debug|ARM
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|ARM = Release|ARM
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{04B2B167-CA64-5005-B053-E706C876A7DB}.Debug|ARM.ActiveCfg = Debug|ARM
+		{04B2B167-CA64-5005-B053-E706C876A7DB}.Debug|ARM.Build.0 = Debug|ARM
+		{04B2B167-CA64-5005-B053-E706C876A7DB}.Debug|ARM.Deploy.0 = Debug|ARM
+		{04B2B167-CA64-5005-B053-E706C876A7DB}.Debug|x64.ActiveCfg = Debug|x64
+		{04B2B167-CA64-5005-B053-E706C876A7DB}.Debug|x64.Build.0 = Debug|x64
+		{04B2B167-CA64-5005-B053-E706C876A7DB}.Debug|x64.Deploy.0 = Debug|x64
+		{04B2B167-CA64-5005-B053-E706C876A7DB}.Debug|x86.ActiveCfg = Debug|x86
+		{04B2B167-CA64-5005-B053-E706C876A7DB}.Debug|x86.Build.0 = Debug|x86
+		{04B2B167-CA64-5005-B053-E706C876A7DB}.Debug|x86.Deploy.0 = Debug|x86
+		{04B2B167-CA64-5005-B053-E706C876A7DB}.Release|ARM.ActiveCfg = Release|ARM
+		{04B2B167-CA64-5005-B053-E706C876A7DB}.Release|ARM.Build.0 = Release|ARM
+		{04B2B167-CA64-5005-B053-E706C876A7DB}.Release|ARM.Deploy.0 = Release|ARM
+		{04B2B167-CA64-5005-B053-E706C876A7DB}.Release|x64.ActiveCfg = Release|x64
+		{04B2B167-CA64-5005-B053-E706C876A7DB}.Release|x64.Build.0 = Release|x64
+		{04B2B167-CA64-5005-B053-E706C876A7DB}.Release|x64.Deploy.0 = Release|x64
+		{04B2B167-CA64-5005-B053-E706C876A7DB}.Release|x86.ActiveCfg = Release|x86
+		{04B2B167-CA64-5005-B053-E706C876A7DB}.Release|x86.Build.0 = Release|x86
+		{04B2B167-CA64-5005-B053-E706C876A7DB}.Release|x86.Deploy.0 = Release|x86
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
