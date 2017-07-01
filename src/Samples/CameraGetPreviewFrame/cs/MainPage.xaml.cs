@@ -70,6 +70,20 @@ namespace CameraGetPreviewFrame
         private bool _mirroringPreview = false;
         private bool _externalCamera = false;
 
+        // Fujimaki Add
+        private string[] _cameraDeviceNames =
+        {
+            "Microsoft LifeCam Rear",
+            "Microsoft LifeCam Front",
+            "USB 2.0 Camera"
+        };
+#if DEBUG
+        private int _cameraID = 0;
+#else
+        private int _cameraID = 2;
+#endif
+
+
         // Fujimaki Add タイマー
         private DispatcherTimer _timer;
         // Fujimaki Add タイマーの時間間隔[ms]
@@ -173,7 +187,22 @@ namespace CameraGetPreviewFrame
 
             await InitializeCameraAsync();
 
-            Task.Delay(1000).Wait();    // Fujimaki Add
+            //Task.Delay(5000).Wait();    // Fujimaki Add
+
+            // Fujimaki Add
+            while(_soundPlayer == null)
+            {
+                // 何もせずにループする。
+                Task.Delay(100).Wait();
+            }
+            for (int i = 0; i < _soundPlayer.Length; i++)
+            {
+                while (_soundPlayer[i] == null || _soundPlayer[i].PlaybackSession.PlaybackState == MediaPlaybackState.Opening)
+                {
+                    // 何もせずにループする。
+                    Task.Delay(100).Wait();
+                }
+            }
 
             _timer = new DispatcherTimer(); // Fujimaki Add
             _timer.Interval = TimeSpan.FromMilliseconds(_timerInterval);    // Fujimaki Add
@@ -285,7 +314,7 @@ namespace CameraGetPreviewFrame
                 DeviceInformation cameraDevice = null;
                 for (int i = 0; i < cameraDevices.Count(); i++)
                 {
-                    if (cameraDevices.ElementAt(i).Name != "USB 2.0 Camera")
+                    if (cameraDevices.ElementAt(i).Name != _cameraDeviceNames[_cameraID])
                     {
                         continue;
                     }
@@ -425,7 +454,14 @@ namespace CameraGetPreviewFrame
         private async void _timer_Tick(object sender, object e)
         {
             //await GetPreviewFrameAsSoftwareBitmapAsync();
-            await PlaySoundAsync();
+            try
+            {
+                await PlaySoundAsync();
+            }
+            catch
+            {
+                // 何もしない。
+            }
         }
 
         // Fujimaki Add
