@@ -20,7 +20,9 @@ using Windows.Graphics.Display;
 using Windows.Graphics.Imaging;
 using Windows.Media;
 using Windows.Media.Capture;
+using Windows.Media.Core;
 using Windows.Media.MediaProperties;
+using Windows.Media.Playback;
 using Windows.Storage;
 using Windows.System.Display;
 using Windows.UI.Core;
@@ -108,6 +110,8 @@ namespace CameraGetPreviewFrame
             "280_resharp2.mp3"
         };
 
+        private MediaPlayer[] _soundPlayer = null;
+
         #region Constructor, lifecycle and navigation
 
         public MainPage()
@@ -121,6 +125,16 @@ namespace CameraGetPreviewFrame
             // Useful to know when to initialize/clean up the camera
             Application.Current.Suspending += Application_Suspending;
             Application.Current.Resuming += Application_Resuming;
+
+            _soundPlayer = new MediaPlayer[_soundFileNames.Length];    // Fujimaki Add
+
+            // Fujimaki Add
+            for (int i = 0; i < _soundFileNames.Length; i++)
+            {
+                _soundPlayer[i] = new MediaPlayer();
+                _soundPlayer[i].AutoPlay = false;
+                _soundPlayer[i].Source = MediaSource.CreateFromUri(new Uri(this.BaseUri, "Assets/" + _soundFileNames[i]));
+            }
         }
 
         private async void Application_Suspending(object sender, SuspendingEventArgs e)
@@ -158,6 +172,8 @@ namespace CameraGetPreviewFrame
             _displayInformation.OrientationChanged += DisplayInformation_OrientationChanged;
 
             await InitializeCameraAsync();
+
+            Task.Delay(1000).Wait();    // Fujimaki Add
 
             _timer = new DispatcherTimer(); // Fujimaki Add
             _timer.Interval = TimeSpan.FromMilliseconds(_timerInterval);    // Fujimaki Add
@@ -262,20 +278,20 @@ namespace CameraGetPreviewFrame
             if (_mediaCapture == null)
             {
                 // Attempt to get the back camera if one is available, but use any camera device if not
-                var cameraDevice = await FindCameraDeviceByPanelAsync(Windows.Devices.Enumeration.Panel.Back);
+                //var cameraDevice = await FindCameraDeviceByPanelAsync(Windows.Devices.Enumeration.Panel.Back);
 
-                //// Fujimaki Add カメラデバイスの選択処理
-                //DeviceInformationCollection cameraDevices = await DeviceInformation.FindAllAsync(DeviceClass.VideoCapture);
-                //DeviceInformation cameraDevice = null;
-                //for (int i = 0; i < cameraDevices.Count(); i++)
-                //{
-                //    if (cameraDevices.ElementAt(i).Name != "USB 2.0 Camera")
-                //    {
-                //        continue;
-                //    }
-                //    cameraDevice = cameraDevices.ElementAt(i);
-                //}
-                //// Fujimaki Add End カメラデバイスの選択処理
+                // Fujimaki Add カメラデバイスの選択処理
+                DeviceInformationCollection cameraDevices = await DeviceInformation.FindAllAsync(DeviceClass.VideoCapture);
+                DeviceInformation cameraDevice = null;
+                for (int i = 0; i < cameraDevices.Count(); i++)
+                {
+                    if (cameraDevices.ElementAt(i).Name != "USB 2.0 Camera")
+                    {
+                        continue;
+                    }
+                    cameraDevice = cameraDevices.ElementAt(i);
+                }
+                // Fujimaki Add End カメラデバイスの選択処理
 
                 if (cameraDevice == null)
                 {
@@ -428,6 +444,9 @@ namespace CameraGetPreviewFrame
                 SoftwareBitmap previewFrame = currentFrame.SoftwareBitmap;
                 int brightness = GetAverageBrightness(previewFrame);
                 this.BrightnessValueText.Text = brightness.ToString();
+                //_soundPlayer[brightness / 10].Pause();
+                //_soundPlayer[brightness / 10].PlaybackSession.Position = TimeSpan.Zero;
+                _soundPlayer[brightness / 10].Play();
             }
         }
 
