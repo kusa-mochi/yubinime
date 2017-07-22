@@ -25,12 +25,15 @@ using Windows.Media.MediaProperties;
 using Windows.Media.Playback;
 using Windows.Storage;
 using Windows.System.Display;
+using Windows.UI;
 using Windows.UI.Core;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media.Imaging;
 using Windows.UI.Xaml.Navigation;
+
+using CameraGetPreviewFrame.Models;
 
 namespace CameraGetPreviewFrame
 {
@@ -75,10 +78,11 @@ namespace CameraGetPreviewFrame
         {
             "Microsoft LifeCam Rear",
             "Microsoft LifeCam Front",
-            "USB 2.0 Camera"
+            "USB 2.0 Camera",
+            "USB 2.0 HD-720P web cam"
         };
 #if DEBUG
-        private int _cameraID = 0;
+        private int _cameraID = 1;
 #else
         private int _cameraID = 2;
 #endif
@@ -88,6 +92,12 @@ namespace CameraGetPreviewFrame
         private DispatcherTimer _timer;
         // Fujimaki Add タイマーの時間間隔[ms]
         private int _timerInterval = 100;
+
+        // Fujimaki Add 色合いのヒストグラムのピークを認識する閾値
+        private double _hueThreshold = 500.0;
+
+        // Fujimaki Add ヒストグラムの平滑化フィルタの長さ
+        private int _smoothFilterLength = 11;
 
         // Fujimaki Add 音声ファイル名
         private string[] _soundFileNames = {
@@ -478,11 +488,25 @@ namespace CameraGetPreviewFrame
             {
                 // Collect the resulting frame
                 SoftwareBitmap previewFrame = currentFrame.SoftwareBitmap;
-                int brightness = GetAverageBrightness(previewFrame);
-                this.BrightnessValueText.Text = brightness.ToString();
-                //_soundPlayer[brightness / 10].Pause();
-                //_soundPlayer[brightness / 10].PlaybackSession.Position = TimeSpan.Zero;
-                _soundPlayer[brightness / 10].Play();
+                double[] hues = null;  // 色合いのヒストグラムデータ
+                GetHues(previewFrame, out hues);
+                double[] noiseRemovedHues = null;
+                RemoveNoise(hues, out noiseRemovedHues);
+                double[] filter = new double[_smoothFilterLength]; // ヒストグラムの平滑化に用いるフィルタ
+                for (int i = 0; i < filter.Length; i++) filter[i] = 1.0;
+                SmoothHist(noiseRemovedHues, filter);   // ヒストグラムを平滑化する
+                int[] huePeaks = null;  // 色合いのピークデータ
+                GetHuePeaks(noiseRemovedHues, out huePeaks);
+                string txt = "";
+                for(int i = 0; i < huePeaks.Length; i++)
+                {
+                    if (huePeaks[i] > 0) txt += GetColorNameFromHueValue((double)i) + ", ";
+                }
+                this.ValueText.Text = txt;
+
+                //int brightness = GetAverageBrightness(previewFrame);
+                //this.ValueText.Text = brightness.ToString();
+                //_soundPlayer[brightness / 10].Play();
             }
         }
 
@@ -748,6 +772,200 @@ namespace CameraGetPreviewFrame
 
                     output = output / (3 * desc.Height * desc.Width);
                 }
+            }
+
+            return output;
+        }
+
+        private unsafe void GetHues(SoftwareBitmap bitmap, out double[] hues)
+        {
+            // In BGRA8 format, each pixel is defined by 4 bytes
+            const int BYTES_PER_PIXEL = 4;
+
+            using (var buffer = bitmap.LockBuffer(BitmapBufferAccessMode.ReadWrite))
+            using (var reference = buffer.CreateReference())
+            {
+                if (reference is IMemoryBufferByteAccess)
+                {
+                    hues = new double[360];
+                    for (int i = 0; i < hues.Length; i++) hues[i] = 0;
+
+                    // Get a pointer to the pixel buffer
+                    byte* data;
+                    uint capacity;
+                    ((IMemoryBufferByteAccess)reference).GetBuffer(out data, out capacity);
+
+                    // Get information about the BitmapBuffer
+                    var desc = buffer.GetPlaneDescription(0);
+
+                    // Iterate over all pixels
+                    for (uint row = 0; row < desc.Height; row++)
+                    {
+                        for (uint col = 0; col < desc.Width; col++)
+                        {
+                            // Index of the current pixel in the buffer (defined by the next 4 bytes, BGRA8)
+                            var currPixel = desc.StartIndex + desc.Stride * row + BYTES_PER_PIXEL * col;
+
+                            // 色合いの値を取得する。
+                            double hue = Models.ColorHelper.RGBtoHSV(
+                                Color.FromArgb(
+                                    255,
+                                    data[currPixel + 2],    // Red 
+                                    data[currPixel + 1],    // Green 
+                                    data[currPixel + 0]     // Blue
+                                    )
+                                )
+                                .H;
+
+                            hues[(int)hue] += 1.0;
+                        }
+                    }
+                }
+                else
+                {
+                    hues = null;
+                }
+            }
+        }
+
+        private void RemoveNoise(double[] hues, out double[] output)
+        {
+            output = new double[hues.Length];
+
+            for(int i = 0; i < hues.Length; i++)
+            {
+                if (hues[i] < _hueThreshold)
+                {
+                    output[i] = 0.0;
+                }
+                else
+                {
+                    output[i] = hues[i];
+                }
+            }
+
+            if(
+                (hues[hues.Length - 1] < 0.001) &&
+                (hues[0] > 0.0) &&
+                (hues[1] < 0.001)
+                )
+            {
+                output[0] = 0.0;
+            }
+            for (int i = 0; i < hues.Length; i++)
+            {
+            }
+            if (
+                (hues[hues.Length - 2] < 0.001) &&
+                (hues[hues.Length - 1] > 0.0) &&
+                (hues[0] < 0.001)
+                )
+            {
+                output[hues.Length - 1] = 0.0;
+            }
+        }
+
+        private void GetHuePeaks(double[] hues, out int[] huePeaks)
+        {
+            huePeaks = new int[hues.Length];
+            for (int i = 0; i < hues.Length; i++)
+            {
+                huePeaks[i] = 0;
+            }
+
+            double[] tmpHues = new double[hues.Length + 2];
+            tmpHues[0] = hues[hues.Length - 1];
+            for(int i = 0; i < hues.Length; i++)
+            {
+                tmpHues[i + 1] = hues[i];
+            }
+            tmpHues[tmpHues.Length - 1] = hues[0];
+
+            for(int i = 0; i < hues.Length; i++)
+            {
+                if(
+                    (tmpHues[i + 1] > _hueThreshold) &&
+                    (tmpHues[i] < tmpHues[i + 1]) && 
+                    (tmpHues[i + 1] > tmpHues[i + 2])
+                    )
+                {
+                    huePeaks[i] = 1;
+                }
+            }
+        }
+
+        private void SmoothHist(double[] hues, double[] filter)
+        {
+            if(filter.Length % 2 == 0)
+            {
+                throw new ArgumentException("フィルタに指定する配列の要素数は奇数となるようにしてください。");
+            }
+
+            double[] tmpHues = new double[hues.Length + filter.Length - 1];
+            int arrayShift = filter.Length / 2;
+            for(int i = 0; i < arrayShift; i++)
+            {
+                tmpHues[i] = hues[hues.Length - arrayShift + i];
+                tmpHues[tmpHues.Length - arrayShift + i] = hues[i];
+            }
+
+            for(int i = 0; i < hues.Length; i++)
+            {
+                tmpHues[i + arrayShift] = hues[i];
+            }
+
+            for (int i = 0; i < hues.Length; i++)
+            {
+                double v = 0.0;
+                for(int j = 0; j < filter.Length; j++)
+                {
+                    v += tmpHues[i + j] * filter[j];
+                }
+                v /= filter.Length;
+                hues[i] = v;
+            }
+        }
+
+        private string GetColorNameFromHueValue(double hue)
+        {
+            if(hue < 0.0)
+            {
+                throw new ArgumentException();
+            }
+
+            string output = "";
+
+            if (hue < 32.0)
+            {
+                output = "赤";
+            }
+            else if(hue < 50.0)
+            {
+                output = "橙";
+            }
+            else if(hue < 64.0)
+            {
+                output = "黄";
+            }
+            else if(hue < 151.0)
+            {
+                output = "緑";
+            }
+            else if(hue < 194.0)
+            {
+                output = "水色";
+            }
+            else if(hue < 266.0)
+            {
+                output = "青";
+            }
+            else if(hue < 295.0)
+            {
+                output = "紫";
+            }
+            else
+            {
+                output = "赤";
             }
 
             return output;
