@@ -10,6 +10,7 @@
 //*********************************************************
 
 using System;
+using System.Collections;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -94,47 +95,27 @@ namespace CameraGetPreviewFrame
         private int _timerInterval = 100;
 
         // Fujimaki Add 色合いのヒストグラムのピークを認識する閾値
-        private double _hueThreshold = 500.0;
+        private double _hueThreshold = 300.0;
 
         // Fujimaki Add ヒストグラムの平滑化フィルタの長さ
         private int _smoothFilterLength = 11;
 
         // Fujimaki Add 音声ファイル名
-        private string[] _soundFileNames = {
-            "003_ra-1.mp3",
-            "005_shiflat-1.mp3",
-            "007_shi-1.mp3",
-            "010_do0.mp3",
-            "020_dosharp0.mp3",
-            "030_re0.mp3",
-            "040_resharp0.mp3",
-            "050_mi0.mp3",
-            "060_fa0.mp3",
-            "070_fasharp0.mp3",
-            "080_so0.mp3",
-            "090_sosharp0.mp3",
-            "100_ra0.mp3",
-            "110_shiflat0.mp3",
-            "120_shi0.mp3",
-            "130_do1.mp3",
-            "140_dosharp1.mp3",
-            "150_re1.mp3",
-            "160_resharp1.mp3",
-            "170_mi1.mp3",
-            "180_fa1.mp3",
-            "190_fasharp1.mp3",
-            "200_so1.mp3",
-            "210_sosharp1.mp3",
-            "220_ra1.mp3",
-            "230_shiflat1.mp3",
-            "240_shi1.mp3",
-            "250_do2.mp3",
-            "260_dosharp2.mp3",
-            "270_re2.mp3",
-            "280_resharp2.mp3"
+        private ArrayList _soundFileNames = null;
+
+        // Fujimaki Add 楽器名
+        private string[] _gakkiNames = new string[] {
+            "piano",
+            "guitar",
+            "echo2s",
+            "synthe"
         };
 
-        private MediaPlayer[] _soundPlayer = null;
+        // 1つの楽器に割り当てる音声ファイルの数
+        private int _numSoundPerGakki = 8;
+
+        private MediaPlayer[,] _soundPlayer = null;
+        private bool[,] _playEnable = null;
 
         #region Constructor, lifecycle and navigation
 
@@ -150,14 +131,32 @@ namespace CameraGetPreviewFrame
             Application.Current.Suspending += Application_Suspending;
             Application.Current.Resuming += Application_Resuming;
 
-            _soundPlayer = new MediaPlayer[_soundFileNames.Length];    // Fujimaki Add
+            // Fujimaki Add 音声ファイル名を設定する。
+            _soundFileNames = new ArrayList();
+            for (int iGakki = 0; iGakki < _gakkiNames.Length; iGakki++)
+            {
+                _soundFileNames.Add(new ArrayList());
+                for (int i = 1; i <= _numSoundPerGakki; i++)
+                {
+                    ((ArrayList)_soundFileNames[iGakki]).Add(_gakkiNames[iGakki] + i.ToString("D2") + ".mp3");
+                }
+            }
 
             // Fujimaki Add
-            for (int i = 0; i < _soundFileNames.Length; i++)
+            _soundPlayer = new MediaPlayer[_soundFileNames.Count, _numSoundPerGakki];    
+            _playEnable = new bool[_soundFileNames.Count, _numSoundPerGakki];
+
+            // Fujimaki Add
+            for (int iGakki = 0; iGakki < _gakkiNames.Length; iGakki++)
             {
-                _soundPlayer[i] = new MediaPlayer();
-                _soundPlayer[i].AutoPlay = false;
-                _soundPlayer[i].Source = MediaSource.CreateFromUri(new Uri(this.BaseUri, "Assets/" + _soundFileNames[i]));
+                for (int i = 0; i < _numSoundPerGakki; i++)
+                {
+                    _soundPlayer[iGakki, i] = new MediaPlayer();
+                    _soundPlayer[iGakki, i].AutoPlay = false;
+                    _soundPlayer[iGakki, i].Source = MediaSource.CreateFromUri(
+                        new Uri(this.BaseUri, "Assets/" + _gakkiNames[iGakki] + "/" + ((ArrayList)_soundFileNames[iGakki])[i])
+                        );
+                }
             }
         }
 
@@ -200,17 +199,20 @@ namespace CameraGetPreviewFrame
             //Task.Delay(5000).Wait();    // Fujimaki Add
 
             // Fujimaki Add
-            while(_soundPlayer == null)
+            while (_soundPlayer == null)
             {
                 // 何もせずにループする。
                 Task.Delay(100).Wait();
             }
-            for (int i = 0; i < _soundPlayer.Length; i++)
+            for (int iGakki = 0; iGakki < _gakkiNames.Length; iGakki++)
             {
-                while (_soundPlayer[i] == null || _soundPlayer[i].PlaybackSession.PlaybackState == MediaPlaybackState.Opening)
+                for (int i = 0; i < _numSoundPerGakki; i++)
                 {
-                    // 何もせずにループする。
-                    Task.Delay(100).Wait();
+                    while (_soundPlayer[iGakki, i] == null || _soundPlayer[iGakki, i].PlaybackSession.PlaybackState == MediaPlaybackState.Opening)
+                    {
+                        // 何もせずにループする。
+                        Task.Delay(100).Wait();
+                    }
                 }
             }
 
@@ -468,9 +470,9 @@ namespace CameraGetPreviewFrame
             {
                 await PlaySoundAsync();
             }
-            catch
+            catch (Exception excep)
             {
-                // 何もしない。
+                this.ValueText.Text = excep.Message;
             }
         }
 
@@ -488,25 +490,57 @@ namespace CameraGetPreviewFrame
             {
                 // Collect the resulting frame
                 SoftwareBitmap previewFrame = currentFrame.SoftwareBitmap;
-                double[] hues = null;  // 色合いのヒストグラムデータ
+                double[,] hues = null;  // 色合いのヒストグラムデータ
                 GetHues(previewFrame, out hues);
-                double[] noiseRemovedHues = null;
+                double[,] noiseRemovedHues = null;
                 RemoveNoise(hues, out noiseRemovedHues);
                 double[] filter = new double[_smoothFilterLength]; // ヒストグラムの平滑化に用いるフィルタ
                 for (int i = 0; i < filter.Length; i++) filter[i] = 1.0;
                 SmoothHist(noiseRemovedHues, filter);   // ヒストグラムを平滑化する
-                int[] huePeaks = null;  // 色合いのピークデータ
+                int[,] huePeaks = null;  // 色合いのピークデータ
                 GetHuePeaks(noiseRemovedHues, out huePeaks);
-                string txt = "";
-                for(int i = 0; i < huePeaks.Length; i++)
+                ResetPlayEnable();
+                for (int i = 0; i < huePeaks.GetLength(0); i++)
                 {
-                    if (huePeaks[i] > 0) txt += GetColorNameFromHueValue((double)i) + ", ";
+                    for (int j = 0; j < huePeaks.GetLength(1); j++)
+                    {
+                        try
+                        {
+                            if (huePeaks[i, j] > 0)
+                            {
+                                string colorName = "";
+                                int gakkiId = -1;
+                                GetColorNameFromHueValue((double)i, out colorName, out gakkiId);
+                                _playEnable[gakkiId, j] = true;
+                            }
+                        }
+                        catch (Exception excep)
+                        {
+                            int a = 0;
+                        }
+                    }
+                }
+
+                string txt = "";
+                try
+                {
+                    for (int i = 0; i < _playEnable.GetLength(0); i++)
+                    {
+                        for (int j = 0; j < _playEnable.GetLength(1); j++)
+                        {
+                            if (_playEnable[i, j])
+                            {
+                                _soundPlayer[i, j].Play();
+                                txt += i.ToString() + ":" + j.ToString() + "|";
+                            }
+                        }
+                    }
+                }
+                catch (Exception excep)
+                {
+                    int a = 0;
                 }
                 this.ValueText.Text = txt;
-
-                //int brightness = GetAverageBrightness(previewFrame);
-                //this.ValueText.Text = brightness.ToString();
-                //_soundPlayer[brightness / 10].Play();
             }
         }
 
@@ -777,7 +811,7 @@ namespace CameraGetPreviewFrame
             return output;
         }
 
-        private unsafe void GetHues(SoftwareBitmap bitmap, out double[] hues)
+        private unsafe void GetHues(SoftwareBitmap bitmap, out double[,] hues)
         {
             // In BGRA8 format, each pixel is defined by 4 bytes
             const int BYTES_PER_PIXEL = 4;
@@ -787,8 +821,14 @@ namespace CameraGetPreviewFrame
             {
                 if (reference is IMemoryBufferByteAccess)
                 {
-                    hues = new double[360];
-                    for (int i = 0; i < hues.Length; i++) hues[i] = 0;
+                    hues = new double[360, _numSoundPerGakki];
+                    for (int i = 0; i < 360; i++)
+                    {
+                        for (int j = 0; j < _numSoundPerGakki; j++)
+                        {
+                            hues[i, j] = 0;
+                        }
+                    }
 
                     // Get a pointer to the pixel buffer
                     byte* data;
@@ -807,17 +847,24 @@ namespace CameraGetPreviewFrame
                             var currPixel = desc.StartIndex + desc.Stride * row + BYTES_PER_PIXEL * col;
 
                             // 色合いの値を取得する。
-                            double hue = Models.ColorHelper.RGBtoHSV(
+                            HSVColor hsv = Models.ColorHelper.RGBtoHSV(
                                 Color.FromArgb(
                                     255,
                                     data[currPixel + 2],    // Red 
                                     data[currPixel + 1],    // Green 
                                     data[currPixel + 0]     // Blue
                                     )
-                                )
-                                .H;
-
-                            hues[(int)hue] += 1.0;
+                                );
+                            double hue = hsv.H;
+                            double brightness = hsv.V;
+                            try
+                            {
+                                hues[(int)hue, (int)(brightness * 7.0 / 255.0)] += 1.0;
+                            }
+                            catch (Exception excep)
+                            {
+                                int a = 0;
+                            }
                         }
                     }
                 }
@@ -828,147 +875,217 @@ namespace CameraGetPreviewFrame
             }
         }
 
-        private void RemoveNoise(double[] hues, out double[] output)
+        /// <summary>
+        /// 異常値などのノイズ成分を取り除く。
+        /// </summary>
+        /// <param name="hues">360x8 double array</param>
+        /// <param name="output">360x8 double array</param>
+        private void RemoveNoise(double[,] hues, out double[,] output)
         {
-            output = new double[hues.Length];
+            output = new double[hues.GetLength(0), hues.GetLength(1)];
 
-            for(int i = 0; i < hues.Length; i++)
+            // 閾値よりも低いカウント数のものは除去する。
+            try
             {
-                if (hues[i] < _hueThreshold)
+                for (int i = 0; i < hues.GetLength(0); i++)
                 {
-                    output[i] = 0.0;
+                    for (int j = 0; j < hues.GetLength(1); j++)
+                    {
+                        output[i, j] = (hues[i, j] < _hueThreshold ? 0.0 : hues[i, j]);
+                    }
                 }
-                else
-                {
-                    output[i] = hues[i];
-                }
+            }
+            catch (Exception excep)
+            {
+                int a = 0;
             }
 
-            if(
-                (hues[hues.Length - 1] < 0.001) &&
-                (hues[0] > 0.0) &&
-                (hues[1] < 0.001)
-                )
+            // 両隣りの色相のカウント数がゼロのものは除去する。
+            for (int j = 0; j < hues.GetLength(1); j++)
             {
-                output[0] = 0.0;
-            }
-            for (int i = 0; i < hues.Length; i++)
-            {
-            }
-            if (
-                (hues[hues.Length - 2] < 0.001) &&
-                (hues[hues.Length - 1] > 0.0) &&
-                (hues[0] < 0.001)
-                )
-            {
-                output[hues.Length - 1] = 0.0;
+                try
+                {
+                    if (
+                        (hues[hues.GetLength(0) - 1, j] < 0.001) &&
+                        (hues[0, j] > 0.0) &&
+                        (hues[1, j] < 0.001)
+                        )
+                    {
+                        output[0, j] = 0.0;
+                    }
+                }
+                catch (Exception excep)
+                {
+                    int a = 0;
+                }
+                try
+                {
+                    for (int i = 1; i < hues.GetLength(0) - 1; i++)
+                    {
+                        if (
+                            (hues[i - 1, j] < 0.001) &&
+                            (hues[i, j] > 0.0) &&
+                            (hues[i + 1, j] < 0.001)
+                            )
+                        {
+                            output[i, j] = 0.0;
+                        }
+                    }
+                }
+                catch (Exception excep)
+                {
+                    int a = 0;
+                }
+                try
+                {
+                    if (
+                        (hues[hues.GetLength(0) - 2, j] < 0.001) &&
+                        (hues[hues.GetLength(0) - 1, j] > 0.0) &&
+                        (hues[0, j] < 0.001)
+                        )
+                    {
+                        output[hues.GetLength(0) - 1, j] = 0.0;
+                    }
+                }
+                catch (Exception excep)
+                {
+                    int a = 0;
+                }
             }
         }
 
-        private void GetHuePeaks(double[] hues, out int[] huePeaks)
+        private void GetHuePeaks(double[,] hues, out int[,] huePeaks)
         {
-            huePeaks = new int[hues.Length];
-            for (int i = 0; i < hues.Length; i++)
+            huePeaks = new int[hues.GetLength(0), hues.GetLength(1)];
+            for (int i = 0; i < hues.GetLength(0); i++)
             {
-                huePeaks[i] = 0;
-            }
-
-            double[] tmpHues = new double[hues.Length + 2];
-            tmpHues[0] = hues[hues.Length - 1];
-            for(int i = 0; i < hues.Length; i++)
-            {
-                tmpHues[i + 1] = hues[i];
-            }
-            tmpHues[tmpHues.Length - 1] = hues[0];
-
-            for(int i = 0; i < hues.Length; i++)
-            {
-                if(
-                    (tmpHues[i + 1] > _hueThreshold) &&
-                    (tmpHues[i] < tmpHues[i + 1]) && 
-                    (tmpHues[i + 1] > tmpHues[i + 2])
-                    )
+                for (int j = 0; j < hues.GetLength(1); j++)
                 {
-                    huePeaks[i] = 1;
+                    huePeaks[i, j] = 0;
+                }
+            }
+
+            double[] tmpHues = new double[hues.GetLength(0) + 2];
+            for (int j = 0; j < hues.GetLength(1); j++)
+            {
+                tmpHues[0] = hues[hues.GetLength(0) - 1, j];
+                for (int i = 0; i < hues.GetLength(0); i++)
+                {
+                    tmpHues[i + 1] = hues[i, j];
+                }
+                tmpHues[tmpHues.Length - 1] = hues[0, j];
+
+                for (int i = 0; i < hues.GetLength(0); i++)
+                {
+                    if (
+                        (tmpHues[i + 1] > _hueThreshold) &&
+                        (tmpHues[i] < tmpHues[i + 1]) &&
+                        (tmpHues[i + 1] > tmpHues[i + 2])
+                        )
+                    {
+                        huePeaks[i, j] = 1;
+                    }
                 }
             }
         }
 
-        private void SmoothHist(double[] hues, double[] filter)
+        private void SmoothHist(double[,] hues, double[] filter)
         {
-            if(filter.Length % 2 == 0)
+            if (filter.Length % 2 == 0)
             {
                 throw new ArgumentException("フィルタに指定する配列の要素数は奇数となるようにしてください。");
             }
 
-            double[] tmpHues = new double[hues.Length + filter.Length - 1];
+            double[] tmpHues = new double[hues.GetLength(0) + filter.Length - 1];
             int arrayShift = filter.Length / 2;
-            for(int i = 0; i < arrayShift; i++)
-            {
-                tmpHues[i] = hues[hues.Length - arrayShift + i];
-                tmpHues[tmpHues.Length - arrayShift + i] = hues[i];
-            }
 
-            for(int i = 0; i < hues.Length; i++)
+            for (int j = 0; j < hues.GetLength(1); j++)
             {
-                tmpHues[i + arrayShift] = hues[i];
-            }
-
-            for (int i = 0; i < hues.Length; i++)
-            {
-                double v = 0.0;
-                for(int j = 0; j < filter.Length; j++)
+                for (int i = 0; i < arrayShift; i++)
                 {
-                    v += tmpHues[i + j] * filter[j];
+                    tmpHues[i] = hues[hues.GetLength(0) - arrayShift + i, j];
+                    tmpHues[tmpHues.Length - arrayShift + i] = hues[i, j];
                 }
-                v /= filter.Length;
-                hues[i] = v;
+
+                for (int i = 0; i < hues.GetLength(0); i++)
+                {
+                    tmpHues[i + arrayShift] = hues[i, j];
+                }
+
+                for (int i = 0; i < hues.GetLength(0); i++)
+                {
+                    double v = 0.0;
+                    for (int k = 0; k < filter.Length; k++)
+                    {
+                        v += tmpHues[i + k] * filter[k];
+                    }
+                    v /= filter.Length;
+                    hues[i, j] = v;
+                }
             }
         }
 
-        private string GetColorNameFromHueValue(double hue)
+        private void ResetPlayEnable()
         {
-            if(hue < 0.0)
+            for (int i = 0; i < _playEnable.GetLength(0); i++)
+            {
+                for (int j = 0; j < _playEnable.GetLength(1); j++)
+                {
+                    _playEnable[i, j] = false;
+                }
+            }
+        }
+
+        private void GetColorNameFromHueValue(double hue, out string colorName, out int gakkiId)
+        {
+            if (hue < 0.0)
             {
                 throw new ArgumentException();
             }
 
-            string output = "";
+            colorName = "";
+            gakkiId = -1;
 
             if (hue < 32.0)
             {
-                output = "赤";
+                colorName = "赤";
+                gakkiId = 0;
             }
-            else if(hue < 50.0)
+            else if (hue < 50.0)
             {
-                output = "橙";
+                colorName = "橙";
+                gakkiId = 1;
             }
-            else if(hue < 64.0)
+            else if (hue < 64.0)
             {
-                output = "黄";
+                colorName = "黄";
+                gakkiId = 1;
             }
-            else if(hue < 151.0)
+            else if (hue < 151.0)
             {
-                output = "緑";
+                colorName = "緑";
+                gakkiId = 2;
             }
-            else if(hue < 194.0)
+            else if (hue < 194.0)
             {
-                output = "水色";
+                colorName = "水色";
+                gakkiId = 3;
             }
-            else if(hue < 266.0)
+            else if (hue < 266.0)
             {
-                output = "青";
+                colorName = "青";
+                gakkiId = 3;
             }
-            else if(hue < 295.0)
+            else if (hue < 295.0)
             {
-                output = "紫";
+                colorName = "紫";
+                gakkiId = 0;
             }
             else
             {
-                output = "赤";
+                colorName = "赤";
+                gakkiId = 0;
             }
-
-            return output;
         }
 
         #endregion Helper functions 
