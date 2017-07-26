@@ -85,7 +85,7 @@ namespace CameraGetPreviewFrame
 #if DEBUG
         private int _cameraID = 1;
 #else
-        private int _cameraID = 2;
+        private int _cameraID = 3;
 #endif
 
 
@@ -95,7 +95,7 @@ namespace CameraGetPreviewFrame
         private int _timerInterval = 100;
 
         // Fujimaki Add 色合いのヒストグラムのピークを認識する閾値
-        private double _hueThreshold = 300.0;
+        private double _hueThreshold = 300.0 / 32.0;
 
         // Fujimaki Add ヒストグラムの平滑化フィルタの長さ
         private int _smoothFilterLength = 11;
@@ -109,6 +109,14 @@ namespace CameraGetPreviewFrame
             "guitar",
             "echo2s",
             "synthe"
+        };
+
+        private double[] _hsvSplitValue = new double[]
+        {
+            65.0,
+            150.0,
+            250.0,
+            345.0
         };
 
         // 1つの楽器に割り当てる音声ファイルの数
@@ -143,7 +151,7 @@ namespace CameraGetPreviewFrame
             }
 
             // Fujimaki Add
-            _soundPlayer = new MediaPlayer[_soundFileNames.Count, _numSoundPerGakki];    
+            _soundPlayer = new MediaPlayer[_soundFileNames.Count, _numSoundPerGakki];
             _playEnable = new bool[_soundFileNames.Count, _numSoundPerGakki];
 
             // Fujimaki Add
@@ -531,7 +539,7 @@ namespace CameraGetPreviewFrame
                             if (_playEnable[i, j])
                             {
                                 _soundPlayer[i, j].Play();
-                                txt += i.ToString() + ":" + j.ToString() + "|";
+                                txt += _gakkiNames[i] + ":" + j.ToString() + "|";
                             }
                         }
                     }
@@ -839,9 +847,9 @@ namespace CameraGetPreviewFrame
                     var desc = buffer.GetPlaneDescription(0);
 
                     // Iterate over all pixels
-                    for (uint row = 0; row < desc.Height; row++)
+                    for (uint row = 0; row < desc.Height; row++, row++, row++, row++, row++, row++, row++, row++)
                     {
-                        for (uint col = 0; col < desc.Width; col++)
+                        for (uint col = 0; col < desc.Width; col++, col++, col++, col++, col++, col++, col++, col++)
                         {
                             // Index of the current pixel in the buffer (defined by the next 4 bytes, BGRA8)
                             var currPixel = desc.StartIndex + desc.Stride * row + BYTES_PER_PIXEL * col;
@@ -1046,46 +1054,64 @@ namespace CameraGetPreviewFrame
             colorName = "";
             gakkiId = -1;
 
-            if (hue < 32.0)
+            if ((hue < _hsvSplitValue[0]) || (_hsvSplitValue[3] < hue))
             {
-                colorName = "赤";
                 gakkiId = 0;
             }
-            else if (hue < 50.0)
+            else if (hue < _hsvSplitValue[1])
             {
-                colorName = "橙";
                 gakkiId = 1;
             }
-            else if (hue < 64.0)
+            else if (hue < _hsvSplitValue[2])
             {
-                colorName = "黄";
-                gakkiId = 1;
-            }
-            else if (hue < 151.0)
-            {
-                colorName = "緑";
                 gakkiId = 2;
-            }
-            else if (hue < 194.0)
-            {
-                colorName = "水色";
-                gakkiId = 3;
-            }
-            else if (hue < 266.0)
-            {
-                colorName = "青";
-                gakkiId = 3;
-            }
-            else if (hue < 295.0)
-            {
-                colorName = "紫";
-                gakkiId = 0;
             }
             else
             {
-                colorName = "赤";
-                gakkiId = 0;
+                gakkiId = 3;
             }
+            colorName = _gakkiNames[gakkiId];
+
+            //if (hue < 32.0)
+            //{
+            //    colorName = "赤";
+            //    gakkiId = 0;
+            //}
+            //else if (hue < 50.0)
+            //{
+            //    colorName = "橙";
+            //    gakkiId = 1;
+            //}
+            //else if (hue < 64.0)
+            //{
+            //    colorName = "黄";
+            //    gakkiId = 1;
+            //}
+            //else if (hue < 151.0)
+            //{
+            //    colorName = "緑";
+            //    gakkiId = 2;
+            //}
+            //else if (hue < 194.0)
+            //{
+            //    colorName = "水色";
+            //    gakkiId = 3;
+            //}
+            //else if (hue < 266.0)
+            //{
+            //    colorName = "青";
+            //    gakkiId = 3;
+            //}
+            //else if (hue < 295.0)
+            //{
+            //    colorName = "紫";
+            //    gakkiId = 0;
+            //}
+            //else
+            //{
+            //    colorName = "赤";
+            //    gakkiId = 0;
+            //}
         }
 
         #endregion Helper functions 
