@@ -83,7 +83,7 @@ namespace CameraGetPreviewFrame
             "USB 2.0 HD-720P web cam"
         };
 #if DEBUG
-        private int _cameraID = 1;
+        private int _cameraID = 3;
 #else
         private int _cameraID = 3;
 #endif
@@ -334,11 +334,11 @@ namespace CameraGetPreviewFrame
                 DeviceInformation cameraDevice = null;
                 for (int i = 0; i < cameraDevices.Count(); i++)
                 {
-                    if (cameraDevices.ElementAt(i).Name != _cameraDeviceNames[_cameraID])
+                    if (cameraDevices.ElementAt(i).Name == _cameraDeviceNames[_cameraID])
                     {
-                        continue;
+                        cameraDevice = cameraDevices.ElementAt(i);
+                        break;
                     }
-                    cameraDevice = cameraDevices.ElementAt(i);
                 }
                 // Fujimaki Add End カメラデバイスの選択処理
 
@@ -365,6 +365,10 @@ namespace CameraGetPreviewFrame
                 catch (UnauthorizedAccessException)
                 {
                     Debug.WriteLine("The app was denied access to the camera");
+                }
+                catch(Exception excep)
+                {
+                    int a = 0;
                 }
 
                 // If initialization succeeded, start the preview
@@ -519,7 +523,7 @@ namespace CameraGetPreviewFrame
                                 string colorName = "";
                                 int gakkiId = -1;
                                 GetColorNameFromHueValue((double)i, out colorName, out gakkiId);
-                                _playEnable[gakkiId, j] = true;
+                                if (gakkiId >= 0) _playEnable[gakkiId, j] = true;
                             }
                         }
                         catch (Exception excep)
@@ -867,7 +871,11 @@ namespace CameraGetPreviewFrame
                             double brightness = hsv.V;
                             try
                             {
-                                hues[(int)hue, (int)(brightness * 7.0 / 255.0)] += 1.0;
+                                // 彩度が10%以上の場合
+                                if ((hsv.S > 0.20) || (hsv.V > 20.0))
+                                {
+                                    hues[(int)hue, (int)(brightness * 7.0 / 255.0)] += 1.0;
+                                }
                             }
                             catch (Exception excep)
                             {
@@ -1054,64 +1062,29 @@ namespace CameraGetPreviewFrame
             colorName = "";
             gakkiId = -1;
 
-            if ((hue < _hsvSplitValue[0]) || (_hsvSplitValue[3] < hue))
+            if ((200.0 < hue) && (hue < 240.0))
             {
                 gakkiId = 0;
             }
-            else if (hue < _hsvSplitValue[1])
+            else if ((100.0 < hue) && (hue < 130.0))
             {
                 gakkiId = 1;
             }
-            else if (hue < _hsvSplitValue[2])
+            else if ((30.0 < hue) && (hue < 50.0))
             {
                 gakkiId = 2;
             }
-            else
+            else if ((340.0 < hue) || (hue < 10.0))
             {
                 gakkiId = 3;
             }
-            colorName = _gakkiNames[gakkiId];
+            else
+            {
+                gakkiId = -1;
+                return;
+            }
 
-            //if (hue < 32.0)
-            //{
-            //    colorName = "赤";
-            //    gakkiId = 0;
-            //}
-            //else if (hue < 50.0)
-            //{
-            //    colorName = "橙";
-            //    gakkiId = 1;
-            //}
-            //else if (hue < 64.0)
-            //{
-            //    colorName = "黄";
-            //    gakkiId = 1;
-            //}
-            //else if (hue < 151.0)
-            //{
-            //    colorName = "緑";
-            //    gakkiId = 2;
-            //}
-            //else if (hue < 194.0)
-            //{
-            //    colorName = "水色";
-            //    gakkiId = 3;
-            //}
-            //else if (hue < 266.0)
-            //{
-            //    colorName = "青";
-            //    gakkiId = 3;
-            //}
-            //else if (hue < 295.0)
-            //{
-            //    colorName = "紫";
-            //    gakkiId = 0;
-            //}
-            //else
-            //{
-            //    colorName = "赤";
-            //    gakkiId = 0;
-            //}
+            colorName = _gakkiNames[gakkiId];
         }
 
         #endregion Helper functions 
