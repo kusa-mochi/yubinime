@@ -83,7 +83,7 @@ namespace CameraGetPreviewFrame
             "USB 2.0 HD-720P web cam"
         };
 #if DEBUG
-        private int _cameraID = 3;
+        private int _cameraID = 1;
 #else
         private int _cameraID = 3;
 #endif
@@ -92,7 +92,7 @@ namespace CameraGetPreviewFrame
         // Fujimaki Add タイマー
         private DispatcherTimer _timer;
         // Fujimaki Add タイマーの時間間隔[ms]
-        private int _timerInterval = 100;
+        private int _timerInterval = 200;
 
         // Fujimaki Add 色合いのヒストグラムのピークを認識する閾値
         private double _hueThreshold = 300.0 / 32.0;
@@ -102,6 +102,9 @@ namespace CameraGetPreviewFrame
 
         // Fujimaki Add 音声ファイル名
         private ArrayList _soundFileNames = null;
+
+        // Fujimaki Add
+        private Uri _baseUri = null;
 
         // Fujimaki Add 楽器名と，それぞれに対応する色相範囲（HSV色空間のHUE値）
         private GakkiParam[] _gakki = new GakkiParam[]
@@ -113,16 +116,21 @@ namespace CameraGetPreviewFrame
         };
 
         // Fujimaki Add 彩度の閾値（この値よりも大きな色が楽器の演奏に反映される）
-        private double _saturationThreshold = 0.20;
+        private double _saturationThreshold = 0.10;
 
         // Fujimaki Add 明度の閾値（この値よりも大きな色が楽器の演奏に反映される）
-        private double _valueThreshold = 20.0;
+        private double _valueThreshold = 10.0;
 
         // 1つの楽器に割り当てる音声ファイルの数
         private int _numSoundPerGakki = 8;
 
-        private MediaPlayer[,] _soundPlayer = null;
+        private MediaPlayer[,,] _soundPlayer = null;
+
+        // ファイル多重化の回数（同じファイルを複数回素早く読み込むための措置）
+        private int _numSameFile = 2;
+
         private bool[,] _playEnable = null;
+        private int[,] _currentSoundIdx = null; // 多重化されたファイルのうち，再生中のものを識別するための番号
 
         #region Constructor, lifecycle and navigation
 
@@ -150,21 +158,29 @@ namespace CameraGetPreviewFrame
             }
 
             // Fujimaki Add
-            _soundPlayer = new MediaPlayer[_soundFileNames.Count, _numSoundPerGakki];
+            _soundPlayer = new MediaPlayer[_soundFileNames.Count, _numSoundPerGakki, _numSameFile];
             _playEnable = new bool[_soundFileNames.Count, _numSoundPerGakki];
+            _currentSoundIdx = new int[_soundFileNames.Count, _numSoundPerGakki];
 
             // Fujimaki Add
             for (int iGakki = 0; iGakki < _gakki.Length; iGakki++)
             {
                 for (int i = 0; i < _numSoundPerGakki; i++)
                 {
-                    _soundPlayer[iGakki, i] = new MediaPlayer();
-                    _soundPlayer[iGakki, i].AutoPlay = false;
-                    _soundPlayer[iGakki, i].Source = MediaSource.CreateFromUri(
-                        new Uri(this.BaseUri, "Assets/" + _gakki[iGakki].gakkiName + "/" + ((ArrayList)_soundFileNames[iGakki])[i])
-                        );
+                    for (int j = 0; j < _numSameFile; j++)
+                    {
+                        _soundPlayer[iGakki, i, j] = new MediaPlayer();
+                        _soundPlayer[iGakki, i, j].AutoPlay = false;
+                        _soundPlayer[iGakki, i, j].Source = MediaSource.CreateFromUri(
+                            new Uri(this.BaseUri, "Assets/" + _gakki[iGakki].gakkiName + "/" + ((ArrayList)_soundFileNames[iGakki])[i])
+                            );
+                    }
+
+                    _currentSoundIdx[iGakki, i] = 0;
                 }
             }
+
+            _baseUri = this.BaseUri;
         }
 
         private async void Application_Suspending(object sender, SuspendingEventArgs e)
@@ -213,10 +229,16 @@ namespace CameraGetPreviewFrame
             {
                 for (int i = 0; i < _numSoundPerGakki; i++)
                 {
-                    while (_soundPlayer[iGakki, i] == null || _soundPlayer[iGakki, i].PlaybackSession.PlaybackState == MediaPlaybackState.Opening)
+                    for (int j = 0; j < _numSameFile; j++)
                     {
-                        // 何もせずにループする。
-                        Task.Delay(100).Wait();
+                        while (
+                            _soundPlayer[iGakki, i, j] == null || 
+                            _soundPlayer[iGakki, i, j].PlaybackSession.PlaybackState == MediaPlaybackState.Opening
+                            )
+                        {
+                            // 何もせずにループする。
+                            Task.Delay(100).Wait();
+                        }
                     }
                 }
             }
@@ -539,7 +561,24 @@ namespace CameraGetPreviewFrame
                         {
                             if (_playEnable[i, j])
                             {
-                                _soundPlayer[i, j].Play();
+                                await Task.Run(() =>
+                                {
+                                    _soundPlayer[i, j, _currentSoundIdx[i, j]].Play();
+                                    _currentSoundIdx[i, j] = ++_currentSoundIdx[i, j] % _numSameFile;
+                                });
+
+                                //await Task.Run(async () =>
+                                //{
+                                //    using (var player = new MediaPlayer())
+                                //    {
+                                //        player.AutoPlay = false;
+                                //        player.Source = MediaSource.CreateFromUri(
+                                //            new Uri(_baseUri, "Assets/" + _gakki[i].gakkiName + "/" + ((ArrayList)_soundFileNames[i])[j])
+                                //            );
+                                //        player.Play();
+                                //        await Task.Delay(2000);
+                                //    }
+                                //});
                                 txt += _gakki[i].gakkiName + ":" + j.ToString() + "|";
                             }
                         }
@@ -552,6 +591,16 @@ namespace CameraGetPreviewFrame
                 this.ValueText.Text = txt;
             }
         }
+
+        //private async Task PlayOneSound(int gakki, int idxSound)
+        //{
+        //    var player = new MediaPlayer();
+        //    player.AutoPlay = false;
+        //    player.Source = MediaSource.CreateFromUri(
+        //        new Uri(this.BaseUri, "Assets/" + _gakki[gakki].gakkiName + "/" + ((ArrayList)_soundFileNames[gakki])[idxSound])
+        //        );
+        //    await Task.Run(() => { player.Play(); });
+        //}
 
         /// <summary>
         /// Gets the current preview frame as a SoftwareBitmap, displays its properties in a TextBlock, and can optionally display the image
@@ -1077,12 +1126,12 @@ namespace CameraGetPreviewFrame
                 }
             }
 
-            if(gakkiId != -1)
+            if (gakkiId != -1)
             {
                 colorName = _gakki[gakkiId].gakkiName;
             }
         }
 
-        #endregion Helper functions 
+        #endregion Helper functions
     }
 }
