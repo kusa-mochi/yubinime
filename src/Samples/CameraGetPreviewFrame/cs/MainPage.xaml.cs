@@ -103,21 +103,20 @@ namespace CameraGetPreviewFrame
         // Fujimaki Add 音声ファイル名
         private ArrayList _soundFileNames = null;
 
-        // Fujimaki Add 楽器名
-        private string[] _gakkiNames = new string[] {
-            "piano",
-            "guitar",
-            "echo2s",
-            "synthe"
+        // Fujimaki Add 楽器名と，それぞれに対応する色相範囲（HSV色空間のHUE値）
+        private GakkiParam[] _gakki = new GakkiParam[]
+        {
+            new GakkiParam("piano", 200.0, 240.0),
+            new GakkiParam("guitar", 100.0, 130.0),
+            new GakkiParam("echo2s", 30.0, 50.0),
+            new GakkiParam("synthe", 340.0, 10.0)
         };
 
-        private double[] _hsvSplitValue = new double[]
-        {
-            65.0,
-            150.0,
-            250.0,
-            345.0
-        };
+        // Fujimaki Add 彩度の閾値（この値よりも大きな色が楽器の演奏に反映される）
+        private double _saturationThreshold = 0.20;
+
+        // Fujimaki Add 明度の閾値（この値よりも大きな色が楽器の演奏に反映される）
+        private double _valueThreshold = 20.0;
 
         // 1つの楽器に割り当てる音声ファイルの数
         private int _numSoundPerGakki = 8;
@@ -141,12 +140,12 @@ namespace CameraGetPreviewFrame
 
             // Fujimaki Add 音声ファイル名を設定する。
             _soundFileNames = new ArrayList();
-            for (int iGakki = 0; iGakki < _gakkiNames.Length; iGakki++)
+            for (int iGakki = 0; iGakki < _gakki.Length; iGakki++)
             {
                 _soundFileNames.Add(new ArrayList());
                 for (int i = 1; i <= _numSoundPerGakki; i++)
                 {
-                    ((ArrayList)_soundFileNames[iGakki]).Add(_gakkiNames[iGakki] + i.ToString("D2") + ".mp3");
+                    ((ArrayList)_soundFileNames[iGakki]).Add(_gakki[iGakki].gakkiName + i.ToString("D2") + ".mp3");
                 }
             }
 
@@ -155,14 +154,14 @@ namespace CameraGetPreviewFrame
             _playEnable = new bool[_soundFileNames.Count, _numSoundPerGakki];
 
             // Fujimaki Add
-            for (int iGakki = 0; iGakki < _gakkiNames.Length; iGakki++)
+            for (int iGakki = 0; iGakki < _gakki.Length; iGakki++)
             {
                 for (int i = 0; i < _numSoundPerGakki; i++)
                 {
                     _soundPlayer[iGakki, i] = new MediaPlayer();
                     _soundPlayer[iGakki, i].AutoPlay = false;
                     _soundPlayer[iGakki, i].Source = MediaSource.CreateFromUri(
-                        new Uri(this.BaseUri, "Assets/" + _gakkiNames[iGakki] + "/" + ((ArrayList)_soundFileNames[iGakki])[i])
+                        new Uri(this.BaseUri, "Assets/" + _gakki[iGakki].gakkiName + "/" + ((ArrayList)_soundFileNames[iGakki])[i])
                         );
                 }
             }
@@ -204,15 +203,13 @@ namespace CameraGetPreviewFrame
 
             await InitializeCameraAsync();
 
-            //Task.Delay(5000).Wait();    // Fujimaki Add
-
             // Fujimaki Add
             while (_soundPlayer == null)
             {
                 // 何もせずにループする。
                 Task.Delay(100).Wait();
             }
-            for (int iGakki = 0; iGakki < _gakkiNames.Length; iGakki++)
+            for (int iGakki = 0; iGakki < _gakki.Length; iGakki++)
             {
                 for (int i = 0; i < _numSoundPerGakki; i++)
                 {
@@ -366,7 +363,7 @@ namespace CameraGetPreviewFrame
                 {
                     Debug.WriteLine("The app was denied access to the camera");
                 }
-                catch(Exception excep)
+                catch (Exception excep)
                 {
                     int a = 0;
                 }
@@ -543,7 +540,7 @@ namespace CameraGetPreviewFrame
                             if (_playEnable[i, j])
                             {
                                 _soundPlayer[i, j].Play();
-                                txt += _gakkiNames[i] + ":" + j.ToString() + "|";
+                                txt += _gakki[i].gakkiName + ":" + j.ToString() + "|";
                             }
                         }
                     }
@@ -872,7 +869,7 @@ namespace CameraGetPreviewFrame
                             try
                             {
                                 // 彩度が10%以上の場合
-                                if ((hsv.S > 0.20) || (hsv.V > 20.0))
+                                if ((hsv.S > _saturationThreshold) || (hsv.V > _valueThreshold))
                                 {
                                     hues[(int)hue, (int)(brightness * 7.0 / 255.0)] += 1.0;
                                 }
@@ -1062,29 +1059,28 @@ namespace CameraGetPreviewFrame
             colorName = "";
             gakkiId = -1;
 
-            if ((200.0 < hue) && (hue < 240.0))
+            for (int i = 0; i < _gakki.Length; i++)
             {
-                gakkiId = 0;
-            }
-            else if ((100.0 < hue) && (hue < 130.0))
-            {
-                gakkiId = 1;
-            }
-            else if ((30.0 < hue) && (hue < 50.0))
-            {
-                gakkiId = 2;
-            }
-            else if ((340.0 < hue) || (hue < 10.0))
-            {
-                gakkiId = 3;
-            }
-            else
-            {
-                gakkiId = -1;
-                return;
+                if (_gakki[i].hueFrom < _gakki[i].hueTo)
+                {
+                    if ((_gakki[i].hueFrom < hue) && (hue < _gakki[i].hueTo))
+                    {
+                        gakkiId = i;
+                    }
+                }
+                else
+                {
+                    if ((_gakki[i].hueFrom < hue) || (hue < _gakki[i].hueTo))
+                    {
+                        gakkiId = i;
+                    }
+                }
             }
 
-            colorName = _gakkiNames[gakkiId];
+            if(gakkiId != -1)
+            {
+                colorName = _gakki[gakkiId].gakkiName;
+            }
         }
 
         #endregion Helper functions 

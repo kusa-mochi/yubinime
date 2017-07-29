@@ -107,6 +107,7 @@
       <Link>Properties\AssemblyInfo.cs</Link>
     </Compile>
     <Compile Include="Models\ColorHelper.cs" />
+    <Compile Include="Models\GakkiParam.cs" />
   </ItemGroup>
   <ItemGroup>
     <AppxManifest Include="Package.appxmanifest">
