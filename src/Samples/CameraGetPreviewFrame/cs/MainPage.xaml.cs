@@ -11,6 +11,7 @@
 
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -25,6 +26,7 @@ using Windows.Media.Core;
 using Windows.Media.MediaProperties;
 using Windows.Media.Playback;
 using Windows.Storage;
+using Windows.System.Threading;
 using Windows.System.Display;
 using Windows.UI;
 using Windows.UI.Core;
@@ -35,6 +37,7 @@ using Windows.UI.Xaml.Media.Imaging;
 using Windows.UI.Xaml.Navigation;
 
 using CameraGetPreviewFrame.Models;
+using Windows.Foundation;
 
 namespace CameraGetPreviewFrame
 {
@@ -83,7 +86,7 @@ namespace CameraGetPreviewFrame
             "USB 2.0 HD-720P web cam"
         };
 #if DEBUG
-        private int _cameraID = 1;
+        private int _cameraID = 3;
 #else
         private int _cameraID = 3;
 #endif
@@ -95,7 +98,7 @@ namespace CameraGetPreviewFrame
         private int _timerInterval = 200;
 
         // Fujimaki Add 色合いのヒストグラムのピークを認識する閾値
-        private double _hueThreshold = 300.0 / 32.0;
+        private double _hueThreshold = 10.0;
 
         // Fujimaki Add ヒストグラムの平滑化フィルタの長さ
         private int _smoothFilterLength = 11;
@@ -127,7 +130,7 @@ namespace CameraGetPreviewFrame
         private MediaPlayer[,,] _soundPlayer = null;
 
         // ファイル多重化の回数（同じファイルを複数回素早く読み込むための措置）
-        private int _numSameFile = 2;
+        private int _numSameFile = 3;
 
         private bool[,] _playEnable = null;
         private int[,] _currentSoundIdx = null; // 多重化されたファイルのうち，再生中のものを識別するための番号
@@ -232,7 +235,7 @@ namespace CameraGetPreviewFrame
                     for (int j = 0; j < _numSameFile; j++)
                     {
                         while (
-                            _soundPlayer[iGakki, i, j] == null || 
+                            _soundPlayer[iGakki, i, j] == null ||
                             _soundPlayer[iGakki, i, j].PlaybackSession.PlaybackState == MediaPlaybackState.Opening
                             )
                         {
@@ -408,6 +411,7 @@ namespace CameraGetPreviewFrame
                         _mirroringPreview = (cameraDevice.EnclosureLocation.Panel == Windows.Devices.Enumeration.Panel.Front);
                     }
 
+                    await SetResolution();
                     await StartPreviewAsync();
 
                     var picturesLibrary = await StorageLibrary.GetLibraryAsync(KnownLibraryId.Pictures);
@@ -516,91 +520,80 @@ namespace CameraGetPreviewFrame
             // Create the video frame to request a SoftwareBitmap preview frame
             var videoFrame = new VideoFrame(BitmapPixelFormat.Bgra8, (int)previewProperties.Width, (int)previewProperties.Height);
 
-            // Capture the preview frame
-            using (var currentFrame = await _mediaCapture.GetPreviewFrameAsync(videoFrame))
+            try
             {
-                // Collect the resulting frame
-                SoftwareBitmap previewFrame = currentFrame.SoftwareBitmap;
-                double[,] hues = null;  // 色合いのヒストグラムデータ
-                GetHues(previewFrame, out hues);
-                double[,] noiseRemovedHues = null;
-                RemoveNoise(hues, out noiseRemovedHues);
-                double[] filter = new double[_smoothFilterLength]; // ヒストグラムの平滑化に用いるフィルタ
-                for (int i = 0; i < filter.Length; i++) filter[i] = 1.0;
-                SmoothHist(noiseRemovedHues, filter);   // ヒストグラムを平滑化する
-                int[,] huePeaks = null;  // 色合いのピークデータ
-                GetHuePeaks(noiseRemovedHues, out huePeaks);
-                ResetPlayEnable();
-                for (int i = 0; i < huePeaks.GetLength(0); i++)
-                {
-                    for (int j = 0; j < huePeaks.GetLength(1); j++)
-                    {
-                        try
-                        {
-                            if (huePeaks[i, j] > 0)
-                            {
-                                string colorName = "";
-                                int gakkiId = -1;
-                                GetColorNameFromHueValue((double)i, out colorName, out gakkiId);
-                                if (gakkiId >= 0) _playEnable[gakkiId, j] = true;
-                            }
-                        }
-                        catch (Exception excep)
-                        {
-                            int a = 0;
-                        }
-                    }
-                }
 
-                string txt = "";
-                try
+
+                // Capture the preview frame
+                using (var currentFrame = await _mediaCapture.GetPreviewFrameAsync(videoFrame))
                 {
-                    for (int i = 0; i < _playEnable.GetLength(0); i++)
+                    try
                     {
-                        for (int j = 0; j < _playEnable.GetLength(1); j++)
+
+
+                        // Collect the resulting frame
+                        SoftwareBitmap previewFrame = currentFrame.SoftwareBitmap;
+                        double[,] hues = null;  // 色合いのヒストグラムデータ
+                        GetHues(previewFrame, out hues);
+                        double[,] noiseRemovedHues = null;
+                        RemoveNoise(hues, out noiseRemovedHues);
+                        double[] filter = new double[_smoothFilterLength]; // ヒストグラムの平滑化に用いるフィルタ
+                        for (int i = 0; i < filter.Length; i++) filter[i] = 1.0;
+                        SmoothHist(noiseRemovedHues, filter);   // ヒストグラムを平滑化する
+                        int[,] huePeaks = null;  // 色合いのピークデータ
+                        GetHuePeaks(noiseRemovedHues, out huePeaks);
+                        ResetPlayEnable();
+                        for (int i = 0; i < huePeaks.GetLength(0); i++)
                         {
-                            if (_playEnable[i, j])
+                            for (int j = 0; j < huePeaks.GetLength(1); j++)
                             {
-                                await Task.Run(() =>
+                                if (huePeaks[i, j] > 0)
                                 {
-                                    _soundPlayer[i, j, _currentSoundIdx[i, j]].Play();
-                                    _currentSoundIdx[i, j] = ++_currentSoundIdx[i, j] % _numSameFile;
-                                });
-
-                                //await Task.Run(async () =>
-                                //{
-                                //    using (var player = new MediaPlayer())
-                                //    {
-                                //        player.AutoPlay = false;
-                                //        player.Source = MediaSource.CreateFromUri(
-                                //            new Uri(_baseUri, "Assets/" + _gakki[i].gakkiName + "/" + ((ArrayList)_soundFileNames[i])[j])
-                                //            );
-                                //        player.Play();
-                                //        await Task.Delay(2000);
-                                //    }
-                                //});
-                                txt += _gakki[i].gakkiName + ":" + j.ToString() + "|";
+                                    string colorName = "";
+                                    int gakkiId = -1;
+                                    GetColorNameFromHueValue((double)i, out colorName, out gakkiId);
+                                    if (gakkiId >= 0) _playEnable[gakkiId, j] = true;
+                                }
                             }
                         }
+
+                        string txt = "";
+                        for (int i = 0; i < _playEnable.GetLength(0); i++)
+                        {
+                            for (int j = 0; j < _playEnable.GetLength(1); j++)
+                            {
+                                if (_playEnable[i, j] && _soundPlayer[i, j, _currentSoundIdx[i, j]].PlaybackSession.PlaybackState == MediaPlaybackState.Paused)
+                                {
+                                    //await Task.Run(() =>
+                                    //{
+                                    //    _soundPlayer[i, j, _currentSoundIdx[i, j]].Play();
+                                    //    _currentSoundIdx[i, j] = ++_currentSoundIdx[i, j] % _numSameFile;
+                                    //});
+                                    await ThreadPool.RunAsync(
+                                    new WorkItemHandler((IAsyncAction act) =>
+                                    {
+                                        _soundPlayer[i, j, _currentSoundIdx[i, j]].Play();
+                                        _currentSoundIdx[i, j] = ++_currentSoundIdx[i, j] % _numSameFile;
+                                    }),
+                                    WorkItemPriority.Normal,
+                                    WorkItemOptions.TimeSliced);
+                                    txt += _gakki[i].gakkiName + ":" + j.ToString() + "|";
+                                }
+                            }
+                        }
+                        this.ValueText.Text = txt;
+                    }
+                    catch (Exception excep)
+                    {
+                        int a = 0;
                     }
                 }
-                catch (Exception excep)
-                {
-                    int a = 0;
-                }
-                this.ValueText.Text = txt;
+            }
+            catch (Exception excep)
+            {
+                int a = 0;
             }
         }
-
-        //private async Task PlayOneSound(int gakki, int idxSound)
-        //{
-        //    var player = new MediaPlayer();
-        //    player.AutoPlay = false;
-        //    player.Source = MediaSource.CreateFromUri(
-        //        new Uri(this.BaseUri, "Assets/" + _gakki[gakki].gakkiName + "/" + ((ArrayList)_soundFileNames[gakki])[idxSound])
-        //        );
-        //    await Task.Run(() => { player.Play(); });
-        //}
 
         /// <summary>
         /// Gets the current preview frame as a SoftwareBitmap, displays its properties in a TextBlock, and can optionally display the image
@@ -895,11 +888,15 @@ namespace CameraGetPreviewFrame
 
                     // Get information about the BitmapBuffer
                     var desc = buffer.GetPlaneDescription(0);
+                    var rowStart = (uint)((desc.Height >> 2) - 1);
+                    var rowNum = (uint)((desc.Height * 3) >> 2);
+                    var colStart = (uint)((desc.Width >> 2) - 1);
+                    var colNum = (uint)((desc.Width * 3) >> 2);
 
                     // Iterate over all pixels
-                    for (uint row = 0; row < desc.Height; row++, row++, row++, row++, row++, row++, row++, row++)
+                    for (uint row = rowStart; row < rowNum; row++)
                     {
-                        for (uint col = 0; col < desc.Width; col++, col++, col++, col++, col++, col++, col++, col++)
+                        for (uint col = colStart; col < colNum; col++)
                         {
                             // Index of the current pixel in the buffer (defined by the next 4 bytes, BGRA8)
                             var currPixel = desc.StartIndex + desc.Stride * row + BYTES_PER_PIXEL * col;
@@ -1132,6 +1129,13 @@ namespace CameraGetPreviewFrame
             }
         }
 
+        public async Task SetResolution()
+        {
+            IReadOnlyList<IMediaEncodingProperties> selectedPreviewResolution = _mediaCapture.VideoDeviceController.GetAvailableMediaStreamProperties(MediaStreamType.VideoPreview);
+
+            //setting resolution
+            await _mediaCapture.VideoDeviceController.SetMediaStreamPropertiesAsync(MediaStreamType.VideoPreview, selectedPreviewResolution.ElementAt(3));
+        }
         #endregion Helper functions
     }
 }
