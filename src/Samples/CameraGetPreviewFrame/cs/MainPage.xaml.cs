@@ -348,9 +348,6 @@ namespace CameraGetPreviewFrame
 
             if (_mediaCapture == null)
             {
-                // Attempt to get the back camera if one is available, but use any camera device if not
-                //var cameraDevice = await FindCameraDeviceByPanelAsync(Windows.Devices.Enumeration.Panel.Back);
-
                 // Fujimaki Add カメラデバイスの選択処理
                 DeviceInformationCollection cameraDevices = await DeviceInformation.FindAllAsync(DeviceClass.VideoCapture);
                 DeviceInformation cameraDevice = null;
@@ -500,7 +497,6 @@ namespace CameraGetPreviewFrame
         // Fujimaki Add
         private async void _timer_Tick(object sender, object e)
         {
-            //await GetPreviewFrameAsSoftwareBitmapAsync();
             try
             {
                 await PlaySoundAsync();
@@ -522,15 +518,11 @@ namespace CameraGetPreviewFrame
 
             try
             {
-
-
                 // Capture the preview frame
                 using (var currentFrame = await _mediaCapture.GetPreviewFrameAsync(videoFrame))
                 {
                     try
                     {
-
-
                         // Collect the resulting frame
                         SoftwareBitmap previewFrame = currentFrame.SoftwareBitmap;
                         double[,] hues = null;  // 色合いのヒストグラムデータ
@@ -564,19 +556,15 @@ namespace CameraGetPreviewFrame
                             {
                                 if (_playEnable[i, j] && _soundPlayer[i, j, _currentSoundIdx[i, j]].PlaybackSession.PlaybackState == MediaPlaybackState.Paused)
                                 {
-                                    //await Task.Run(() =>
-                                    //{
-                                    //    _soundPlayer[i, j, _currentSoundIdx[i, j]].Play();
-                                    //    _currentSoundIdx[i, j] = ++_currentSoundIdx[i, j] % _numSameFile;
-                                    //});
                                     await ThreadPool.RunAsync(
-                                    new WorkItemHandler((IAsyncAction act) =>
-                                    {
-                                        _soundPlayer[i, j, _currentSoundIdx[i, j]].Play();
-                                        _currentSoundIdx[i, j] = ++_currentSoundIdx[i, j] % _numSameFile;
-                                    }),
-                                    WorkItemPriority.Normal,
-                                    WorkItemOptions.TimeSliced);
+                                        new WorkItemHandler((IAsyncAction act) =>
+                                        {
+                                            _soundPlayer[i, j, _currentSoundIdx[i, j]].Play();
+                                            _currentSoundIdx[i, j] = ++_currentSoundIdx[i, j] % _numSameFile;
+                                        }),
+                                        WorkItemPriority.Normal,
+                                        WorkItemOptions.TimeSliced
+                                    );
                                     txt += _gakki[i].gakkiName + ":" + j.ToString() + "|";
                                 }
                             }
