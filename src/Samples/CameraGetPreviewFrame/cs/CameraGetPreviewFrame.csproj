@@ -150,6 +150,14 @@
     <Content Include="..\..\..\SharedContent\media\tile-sdk.png">
       <Link>Assets\tile-sdk.png</Link>
     </Content>
+    <Content Include="Assets\bass\bass01.mp3" />
+    <Content Include="Assets\bass\bass02.mp3" />
+    <Content Include="Assets\bass\bass03.mp3" />
+    <Content Include="Assets\bass\bass04.mp3" />
+    <Content Include="Assets\bass\bass05.mp3" />
+    <Content Include="Assets\bass\bass06.mp3" />
+    <Content Include="Assets\bass\bass07.mp3" />
+    <Content Include="Assets\bass\bass08.mp3" />
     <Content Include="Assets\echo2s\echo2s01.mp3" />
     <Content Include="Assets\echo2s\echo2s02.mp3" />
     <Content Include="Assets\echo2s\echo2s03.mp3" />

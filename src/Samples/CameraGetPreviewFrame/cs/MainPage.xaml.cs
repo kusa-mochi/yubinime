@@ -95,7 +95,7 @@ namespace CameraGetPreviewFrame
         // Fujimaki Add タイマー
         private DispatcherTimer _timer;
         // Fujimaki Add タイマーの時間間隔[ms]
-        private int _timerInterval = 200;
+        private int _timerInterval = 300;
 
         // Fujimaki Add 色合いのヒストグラムのピークを認識する閾値
         private double _hueThreshold = 10.0;
@@ -115,14 +115,15 @@ namespace CameraGetPreviewFrame
             new GakkiParam("piano", 200.0, 240.0),
             new GakkiParam("guitar", 100.0, 130.0),
             new GakkiParam("echo2s", 30.0, 50.0),
-            new GakkiParam("synthe", 340.0, 10.0)
+            new GakkiParam("synthe", 340.0, 10.0),
+            new GakkiParam("bass", 280, 320)
         };
 
         // Fujimaki Add 彩度の閾値（この値よりも大きな色が楽器の演奏に反映される）
-        private double _saturationThreshold = 0.10;
+        private double _saturationThreshold = 0.20;
 
         // Fujimaki Add 明度の閾値（この値よりも大きな色が楽器の演奏に反映される）
-        private double _valueThreshold = 10.0;
+        private double _valueThreshold = 20.0;
 
         // 1つの楽器に割り当てる音声ファイルの数
         private int _numSoundPerGakki = 8;
